@@ -9,15 +9,19 @@ See https://github.com/cantoo-scribe/pdf-lib/issues/98
 
 ## Description
 
+### Actual Test Program
+
 Run the test program:
 
 ```sh
+# pnpx tsx ./src/index.ts
 pnpm run start
 ```
 
-Format sources:
+This writes a file `./embedded.pdf`, unfortunately broken.
 
-```
-pnpm run check # or pnpm run format
-```
+### Generate Test PDFs
+
+The PDFs in `assets/pdf` are generated with the two scripts
+`src/generate-arial.ts` and `src/generate-standard-fonts.ts.
 
