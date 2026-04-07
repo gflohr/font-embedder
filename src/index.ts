@@ -2,10 +2,12 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import {
 	isStandardFont,
+	PDFArray,
 	PDFDict,
 	PDFDocument,
 	PDFName,
 	PDFNumber,
+	PDFRef,
 } from '@cantoo/pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 
@@ -29,14 +31,14 @@ async function embedFonts() {
 	pdfDoc.registerFontkit(fontkit);
 
 	const fontBytes = await fs.readFile(arialPath);
+	const customFont = await pdfDoc.embedFont(fontBytes);
+	const customFontRef = customFont.ref;
+
 	for (const page of pdfDoc.getPages()) {
 		const { Font } = page.node.normalizedEntries();
 		for (const [fontName, fontRef] of Font.entries()) {
 			const fontDict = pdfDoc.context.lookupMaybe(fontRef, PDFDict);
 			if (!fontDict) continue;
-
-			console.log(`font name: ${fontName.decodeText()}`);
-			console.log(`font dict:\n`, fontDict.toString());
 
 			const descriptor = fontDict.lookupMaybe(
 				PDFName.of('FontDescriptor'),
@@ -64,7 +66,8 @@ async function embedFonts() {
 					throw new Error(`cannot embed non-standard font '${baseFontName}'`);
 				}
 
-				const newFontDict = createFontDictionary(pdfDoc, fontBytes);
+				console.log(`BaseFont: ${baseFontName}`);
+				const newFontDict = createFontDictionary(pdfDoc, fontBytes, baseFontName, customFontRef);
 				const fontRef = pdfDoc.context.register(newFontDict);
 				Font.set(fontName, fontRef);
 			}
@@ -118,22 +121,18 @@ function extractMetrics(font: fontkit.Font) {
 function createFontDictionary(
 	pdfDoc: PDFDocument,
 	fontBytes: Uint8Array,
+	fontName: string,
+	fontRef: PDFRef,
 ): PDFDict {
 	const ctx = pdfDoc.context;
 
 	const font = fontkit.create(fontBytes);
-	console.log(font.familyName);
-	console.log(font.fullName);
-	console.log(font.postscriptName);
 	const metrics = extractMetrics(font);
-
-	// --- Embed font file stream ---
-	const fontStream = ctx.flateStream(fontBytes);
 
 	// --- FontDescriptor ---
 	const descriptor = ctx.obj({
 		Type: PDFName.of('FontDescriptor'),
-		FontName: PDFName.of(font.postscriptName || 'CustomFont'),
+		FontName: PDFName.of(fontName),
 		Flags: PDFNumber.of(32),
 		FontBBox: ctx.obj(metrics.bbox),
 		Ascent: PDFNumber.of(metrics.ascent),
@@ -141,7 +140,7 @@ function createFontDictionary(
 		CapHeight: PDFNumber.of(metrics.capHeight),
 		ItalicAngle: PDFNumber.of(metrics.italicAngle),
 		StemV: PDFNumber.of(80),
-		FontFile2: fontStream,
+		FontFile2: fontRef,
 	});
 
 	// --- Widths array ---
@@ -151,7 +150,7 @@ function createFontDictionary(
 	const fontDict = ctx.obj({
 		Type: PDFName.of('Font'),
 		Subtype: PDFName.of('TrueType'),
-		BaseFont: PDFName.of(font.postscriptName || 'CustomFont'),
+		BaseFont: PDFName.of(fontName),
 		Encoding: PDFName.of('WinAnsiEncoding'),
 		FirstChar: PDFNumber.of(32),
 		LastChar: PDFNumber.of(255),
