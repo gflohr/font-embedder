@@ -5,6 +5,7 @@
 	"main": "index.js",
 	"scripts": {
 		"check": "biome check --write",
+		"format": "biome check --write",
 		"start": "tsx ./src/index.ts",
 		"test": "echo \"Error: no test specified\""
 	},
